@@ -1,1 +1,1 @@
-node ~/bin/ytdl-sb/main.js $1
+node ~/bin/termux-ytdl-sb/main.js $1
