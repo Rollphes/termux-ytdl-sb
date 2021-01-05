@@ -1,6 +1,8 @@
 const fs = require('fs');
 const ytdl = require('ytdl-core');
-const ytlist = require('youtube-playlist');
+const sanitizeFilename = require('sanitize-filename');
+const ytpl = require('ytpl');
+const createBar = require('string-progressbar');
 const {
   execSync
 } = require('child_process');
@@ -46,49 +48,48 @@ function main() {
   if (downloadurl.match(/youtu.be/g)) {
     let chars = downloadurl.split('/');
     downloadurl = "https://www.youtube.com/watch?v="+chars[3];
-    console.log(downloadurl);
   }
   if (downloadurl.match(/youtube/g)) {
     if (downloadurl.match(/list=/g)) {
       let url = `https://www.youtube.com/playlist?${downloadurl.match(/list=.*?$/g)}`;
-      ytlist(url, ['id', 'name', 'url']).then((res) => {
+      ytpl(url).then(playlist => {
         starttime = Date.now();
-        foldername = res.data.name.replace(/\//g, '／');
-        playlist_count = res.data.playlist.length;
+        foldername = sanitizeFilename(playlist.title);
+        playlist_count = playlist.items.length;
         if (config.format == "mp4") {
-          res.data.playlist.forEach((data)=> {
-            totalgetmp4(data.url);
+          playlist.items.forEach(item=> {
+            totalgetmp4(item.url);
           });
           if (isExistFile(`/data/data/com.termux/files/home/storage/movies/${foldername}`)) {
             execSync(`rm "/data/data/com.termux/files/home/storage/movies/${foldername}" -r -f`);
           }
           fs.mkdirSync(`/data/data/com.termux/files/home/storage/movies/${foldername}`);
-          ydpl4(res.data.playlist);
+          ydpl4(playlist.items);
           progress++;
-          ydpl4(res.data.playlist);
+          ydpl4(playlist.items);
           progress++;
-          ydpl4(res.data.playlist);
+          ydpl4(playlist.items);
           progress++;
-          ydpl4(res.data.playlist);
+          ydpl4(playlist.items);
           progress++;
-          ydpl4(res.data.playlist);
+          ydpl4(playlist.items);
         } else if (config.format == "mp3") {
-          res.data.playlist.forEach((data)=> {
-            totalgetmp3(data.url);
+          playlist.items.forEach(item=> {
+            totalgetmp3(item.url);
           });
           if (isExistFile(`/data/data/com.termux/files/home/storage/music/${foldername}`)) {
             execSync(`rm "/data/data/com.termux/files/home/storage/music/${foldername}" -r -f`);
           }
           fs.mkdirSync(`/data/data/com.termux/files/home/storage/music/${foldername}`);
-          ydpl3(res.data.playlist);
+          ydpl3(playlist.items);
           progress++;
-          ydpl3(res.data.playlist);
+          ydpl3(playlist.items);
           progress++;
-          ydpl3(res.data.playlist);
+          ydpl3(playlist.items);
           progress++;
-          ydpl3(res.data.playlist);
+          ydpl3(playlist.items);
           progress++;
-          ydpl3(res.data.playlist);
+          ydpl3(playlist.items);
         } else {
           throw new Error(`There is no format called ${config.format}`);
         }
@@ -103,7 +104,10 @@ function main() {
 
 function ydpl4(playlist) {
   let data = playlist[progress];
-  const video = ytdl(data.url)
+  const video = ytdl(data.url,
+    {
+      filter: 'audioandvideo'
+    });
   video.pipe(fs.createWriteStream(`/data/data/com.termux/files/home/storage/movies/${data.id}.mp4`));
   video.on('progress',
     (chunkLength, downloaded, total) => {
@@ -112,11 +116,12 @@ function ydpl4(playlist) {
       if ((Date.now()-flagtime) >= 1000) {
         const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
         flagtime = Date.now();
-        execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
+        execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${createBar(sum(datalist.total), sum(datalist.downloaded))}\n${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)\n${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
       }
     });
   video.on('error',
     (e)=> {
+      datalist.downloaded.set(data.url, downloaded);
       execSync(`rm "/data/data/com.termux/files/home/storage/movies/${data.id}" -r -f`);
       playlist.push(data);
     });
@@ -125,9 +130,9 @@ function ydpl4(playlist) {
       const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
       flagtime = Date.now();
       progress++;
-      execSync(`mv "/data/data/com.termux/files/home/storage/movies/${data.id}.mp4" "/data/data/com.termux/files/home/storage/movies/${foldername}/${data.name.replace(/\//g, '／')}.mp4"`);
+      execSync(`mv "/data/data/com.termux/files/home/storage/movies/${data.id}.mp4" "/data/data/com.termux/files/home/storage/movies/${foldername}/${sanitizeFilename(data.title)}.mp4"`);
       completed = fs.readdirSync(`/data/data/com.termux/files/home/storage/movies/${foldername}`).length;
-      execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
+      execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${createBar(sum(datalist.total), sum(datalist.downloaded))}\n${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)\n${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
       if ((progress) < (playlist.length)) {
         ydpl4(playlist);
       }
@@ -141,15 +146,16 @@ function ydpl4(playlist) {
 function singleytdl(data) {
   starttime = Date.now();
   ytdl.getInfo(data).then(info => {
+    var filename = sanitizeFilename(info.videoDetails.title);
     if (config.format == "mp4") {
       const video = ytdl(data);
-      video.pipe(fs.createWriteStream(`/data/data/com.termux/files/home/storage/movies/${info.videoDetails.title.replace(/\//g, '／')}.mp4`));
+      video.pipe(fs.createWriteStream(`/data/data/com.termux/files/home/storage/movies/${filename}.mp4`));
       video.on('progress',
         (chunkLength, downloaded, total) => {
           if ((Date.now()-flagtime) >= 1000) {
             const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
             flagtime = Date.now();
-            execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${info.videoDetails.title.replace(/\//g, '／')}" -c "${(downloaded/total * 100).toFixed(2)}% (${(downloaded / 1024 / 1024).toFixed(2)}MB/${(total / 1024 / 1024).toFixed(2)}MB)${(downloadedMinutes / (downloaded/total) - downloadedMinutes).toFixed(2)} minute left"`);
+            execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${filename}" -c "${createBar(total, downloaded)}\n${(downloaded/total * 100).toFixed(2)}% (${(downloaded / 1024 / 1024).toFixed(2)}MB/${(total / 1024 / 1024).toFixed(2)}MB)\n${(downloadedMinutes / (downloaded/total) - downloadedMinutes).toFixed(2)} minute left"`);
           }
         });
       video.on('error',
@@ -164,15 +170,14 @@ function singleytdl(data) {
         });
     } else if (config.format == "mp3") {
       const video = ytdl(data, {
-        filter: 'audioonly',
-        highWaterMark: 1024*1024*10
+        filter: 'audioonly'
       });
       video.on('progress',
         (chunkLength, downloaded, total) => {
           if ((Date.now()-flagtime) >= 1000) {
             const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
             flagtime = Date.now();
-            execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${info.videoDetails.title.replace(/\//g, '／')}" -c "${(downloaded/total * 100).toFixed(2)}% (${(downloaded / 1024 / 1024).toFixed(2)}MB/${(total / 1024 / 1024).toFixed(2)}MB)${(downloadedMinutes / (downloaded/total) - downloadedMinutes).toFixed(2)} minute left"`);
+            execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${filename}" -c "${createBar(total, downloaded)}\n${(downloaded/total * 100).toFixed(2)}% (${(downloaded / 1024 / 1024).toFixed(2)}MB/${(total / 1024 / 1024).toFixed(2)}MB)\n${(downloadedMinutes / (downloaded/total) - downloadedMinutes).toFixed(2)} minute left"`);
           }
         });
       video.on('error',
@@ -188,7 +193,7 @@ function singleytdl(data) {
       ffmpeg(video)
       .audioBitrate(128)
       .audioFrequency(22050)
-      .save(`/data/data/com.termux/files/home/storage/music/${info.videoDetails.title.replace(/\//g, '／')}.mp3`);
+      .save(`/data/data/com.termux/files/home/storage/music/${filename}.mp3`);
     } else {
       throw new Error(`There is no format called ${config.format}`);
     }
@@ -208,11 +213,12 @@ function ydpl3(playlist) {
       if ((Date.now()-flagtime) >= 1000) {
         const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
         flagtime = Date.now();
-        execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
+        execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${createBar(sum(datalist.total), sum(datalist.downloaded))}\n${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)\n${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
       }
     });
   video.on('error',
     (e)=> {
+      datalist.downloaded.set(data.url, downloaded);
       execSync(`rm "/data/data/com.termux/files/home/storage/music/${data.id}" -r -f`);
       playlist.push(data);
     });
@@ -221,9 +227,9 @@ function ydpl3(playlist) {
       const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
       flagtime = Date.now();
       progress++;
-      execSync(`mv "/data/data/com.termux/files/home/storage/music/${data.id}.mp3" "/data/data/com.termux/files/home/storage/music/${foldername}/${data.name.replace(/\//g, '／')}.mp3"`);
+      execSync(`mv "/data/data/com.termux/files/home/storage/music/${data.id}.mp3" "/data/data/com.termux/files/home/storage/music/${foldername}/${sanitizeFilename(data.title)}.mp3"`);
       completed = fs.readdirSync(`/data/data/com.termux/files/home/storage/music/${foldername}`).length;
-      execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
+      execSync(`termux-notification --alert-once  --id ${downloaduuid} -t "${foldername}:${completed}/${playlist_count}downloaded" -c "${createBar(sum(datalist.total), sum(datalist.downloaded))}\n${(sum(datalist.downloaded)/sum(datalist.total) * 100).toFixed(2)}% (${(sum(datalist.downloaded) / 1024 / 1024).toFixed(2)}MB/${(sum(datalist.total) / 1024 / 1024).toFixed(2)}MB)\n${(downloadedMinutes / (sum(datalist.downloaded)/sum(datalist.total)) - downloadedMinutes).toFixed(2)} minute left"`);
       if ((progress) < (playlist.length)) {
         ydpl3(playlist);
       }
@@ -273,11 +279,14 @@ function uuid() {
 }
 
 function totalgetmp4(url) {
-  ytdl(url)
+  ytdl(url,
+    {
+      filter: 'audioandvideo'
+    })
   .on('error', (e)=> {
     totalgetmp4(url);
   })
-  .on('progress',
+  .once('progress',
     (chunkLength, downloaded, total) => {
       datalist.total.set(url, total);
     });
@@ -289,7 +298,7 @@ function totalgetmp3(url) {
   .on('error', (e)=> {
     totalgetmp3(url);
   })
-  .on('progress',
+  .once('progress',
     (chunkLength, downloaded, total) => {
       datalist.total.set(url, total);
     });
